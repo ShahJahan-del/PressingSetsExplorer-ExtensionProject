@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pressing Sets Explorer - Extension</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <header>
+        <h1>Pressing Sets Explorer <span>Extension Project</span></h1>
+        <nav>
+            <button class="nav-btn active" data-tab="explore">🎛️ Exploration</button>
+            <button class="nav-btn" data-tab="analyze">📊 Analyse de Morceau</button>
+        </nav>
+    </header>
+
+    <main id="explore-tab" class="tab-content active">
+        <section class="control-panel">
+            <div class="control-group">
+                <label for="station-select">Sélectionner une Station Centre :</label>
+                <select id="station-select">
+                    <option value="Diatonic [D]">Diatonic [D]</option>
+                    <option value="Diatonic [G]">Diatonic [G]</option>
+                    <option value="Octatonic [C]">Octatonic [C]</option>
+                    <option value="Acoustic [C]">Acoustic [C]</option>
+                    <option value="Harmonic Minor [B]">Harmonic Minor [B]</option>
+                </select>
+            </div>
+        </section>
+
+        <section class="control-panel">
+            <div class="control-group">
+                <label for="station-select">Sélectionner une Station Centre :</label>
+                <select id="station-select">
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="distance-select">Profondeur de recherche (Distance max) :</label>
+                    <select id="distance-select">
+                        <option value="1" selected>Distance 1 (Voisins directs)</option>
+                        <option value="2">Distance 2</option>
+                        <option value="3">Distance 3</option>
+                        <option value="4">Distance 4 (Horizon complet)</option>
+                    </select>
+            </div>
+        </section>
+
+<section class="results-container">
+    <h2>Atlas des liaisons géométriques</h2>
+    <div id="layers-wrapper">
+        </div>
+</section>
+
+        <section class="piano-container">
+            <div class="piano">
+                <div class="key white" data-note="0"><span>C</span></div>
+                <div class="key black" data-note="1"><span>C#</span></div>
+                <div class="key white" data-note="2"><span>D</span></div>
+                <div class="key black" data-note="3"><span>D#</span></div>
+                <div class="key white" data-note="4"><span>E</span></div>
+                <div class="key white" data-note="5"><span>F</span></div>
+                <div class="key black" data-note="6"><span>F#</span></div>
+                <div class="key white" data-note="7"><span>G</span></div>
+                <div class="key black" data-note="8"><span>G#</span></div>
+                <div class="key white" data-note="9"><span>A</span></div>
+                <div class="key black" data-note="10"><span>A#</span></div>
+                <div class="key white" data-note="11"><span>B</span></div>
+            </div>
+        </section>
+
+        <section class="results-container">
+            <h2>Gares Voisines Directes (Distance 1)</h2>
+            <div id="neighbors-list" class="grid-neighbors">
+                </div>
+        </section>
+    </main>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
+

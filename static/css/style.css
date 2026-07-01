@@ -1,0 +1,277 @@
+/* ==========================================================================
+   RESET & FONDATIONS GLOBALES
+   ========================================================================== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: #12161a; /* Fond anthracite profond */
+    color: #e2e8f0;            /* Texte clair et doux */
+    padding: 20px;
+    min-height: 100vh;
+}
+
+/* ==========================================================================
+   EN-TÊTE / NAVIGATION
+   ========================================================================== */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #232931;
+    padding-bottom: 15px;
+    margin-bottom: 30px;
+}
+
+header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+header h1 span {
+    font-size: 0.9rem;
+    color: #4ea8de; /* Bleu néon signature */
+    display: block;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+nav {
+    display: flex;
+    gap: 10px;
+}
+
+.nav-btn {
+    background-color: #1b2026;
+    border: 1px solid #343a40;
+    color: #94a3b8;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.nav-btn:hover {
+    background-color: #232931;
+    color: #ffffff;
+}
+
+.nav-btn.active {
+    background-color: #4ea8de;
+    border-color: #4ea8de;
+    color: #12161a;
+}
+
+/* ==========================================================================
+   PANNEAU DE CONTRÔLE (SELECTEURS)
+   ========================================================================== */
+.control-panel {
+    display: flex;
+    gap: 20px;
+    background-color: #1b2026;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #232931;
+    margin-bottom: 30px;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.control-group label {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.control-panel select {
+    background-color: #12161a;
+    border: 1px solid #343a40;
+    color: #ffffff;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 1rem;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+.control-panel select:focus {
+    border-color: #4ea8de;
+}
+
+/* ==========================================================================
+   PIANO CLAVIER VIRTUEL
+   ========================================================================== */
+.piano-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 40px;
+    background: #0f1215;
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid #1b2026;
+}
+
+.piano {
+    display: flex;
+    position: relative;
+    background-color: #000;
+    padding: 3px 3px 0 3px;
+    border-radius: 4px;
+    height: 180px;
+}
+
+.key {
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.key span {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.key.white {
+    background-color: #e2e8f0;
+    color: #334155;
+    width: 45px;
+    height: 100%;
+    border-right: 1px solid #cbd5e1;
+    border-radius: 0 0 4px 4px;
+    z-index: 1;
+}
+
+.key.white:last-child {
+    border-right: none;
+}
+
+.key.black {
+    background-color: #1e293b;
+    color: #94a3b8;
+    width: 28px;
+    height: 60%;
+    margin-left: -14px;
+    margin-right: -14px;
+    z-index: 2;
+    border-radius: 0 0 3px 3px;
+}
+
+/* --- ÉTAT ACTIF (Les Notes Allumées du Set) --- */
+.key.white.active {
+    background-color: #4ea8de;
+    color: #12161a;
+}
+
+.key.black.active {
+    background-color: #56cfe1;
+    color: #12161a;
+}
+
+/* ==========================================================================
+   COUCHES DE DISTANCES & CARTES VOISINS
+   ========================================================================== */
+.results-container h2 {
+    font-size: 1.25rem;
+    margin-bottom: 20px;
+    color: #ffffff;
+    border-left: 4px solid #4ea8de;
+    padding-left: 10px;
+}
+
+.layer-block {
+    margin-bottom: 35px;
+}
+
+.layer-block h3 {
+    font-size: 1rem;
+    color: #74c69d; /* Couleur distincte pour le titre des couches */
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.grid-neighbors {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+}
+
+.neighbor-card {
+    background-color: #1b2026;
+    border: 1px solid #232931;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 12px;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.neighbor-card:hover {
+    transform: translateY(-2px);
+    border-color: #343a40;
+}
+
+.neighbor-card h4 {
+    font-size: 1rem;
+    color: #ffffff;
+}
+
+.neighbor-card p {
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.neighbor-card .vl {
+    color: #94a3b8;
+    background: #12161a;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border-left: 3px solid #56cfe1;
+}
+
+.neighbor-card .path-routing {
+    color: #64748b;
+    font-style: italic;
+    font-size: 0.8rem;
+}
+
+/* --- BOUTONS D'INTERACTION --- */
+.jump-btn {
+    background-color: #232931;
+    border: 1px solid #343a40;
+    color: #e2e8f0;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    width: 100%;
+    transition: all 0.1s ease;
+}
+
+.jump-btn:hover {
+    background-color: #4ea8de;
+    border-color: #4ea8de;
+    color: #12161a;
+}
