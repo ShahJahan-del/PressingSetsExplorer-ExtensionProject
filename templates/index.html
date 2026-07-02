@@ -17,42 +17,51 @@
     </header>
 
     <main id="explore-tab" class="tab-content active">
-        <section class="control-panel">
-            <div class="control-group">
-                <label for="station-select">Sélectionner une Station Centre :</label>
-                <select id="station-select">
-                    <option value="Diatonic [D]">Diatonic [D]</option>
-                    <option value="Diatonic [G]">Diatonic [G]</option>
-                    <option value="Octatonic [C]">Octatonic [C]</option>
-                    <option value="Acoustic [C]">Acoustic [C]</option>
-                    <option value="Harmonic Minor [B]">Harmonic Minor [B]</option>
-                </select>
-            </div>
-        </section>
 
         <section class="control-panel">
             <div class="control-group">
-                <label for="station-select">Sélectionner une Station Centre :</label>
-                <select id="station-select">
+                <label for="set-type-select">Type de Pressing Set :</label>
+                <select id="set-type-select">
+                    <option value="" disabled selected>Choisir une structure...</option>
+                    <option value="Diatonic">Diatonic (7)</option>
+                    <option value="Acoustic">Acoustic (7)</option>
+                    <option value="Octatonic">Octatonic (8)</option>
+                    <option value="Whole Tone">Whole Tone (6)</option>
+                    <option value="Hexatonic">Hexatonic (6)</option>
+                    <option value="Harmonic Minor">Harmonic Minor (7)</option>
+                    <option value="Harmonic Major">Harmonic Major (7)</option>
                 </select>
             </div>
 
             <div class="control-group">
-                <label for="distance-select">Profondeur de recherche (Distance max) :</label>
-                    <select id="distance-select">
-                        <option value="1" selected>Distance 1 (Voisins directs)</option>
-                        <option value="2">Distance 2</option>
-                        <option value="3">Distance 3</option>
-                        <option value="4">Distance 4 (Horizon complet)</option>
-                    </select>
+                <label for="root-select">Transposition (Fondamentale) :</label>
+                <select id="root-select" disabled>
+                    <option value="" disabled selected>Choisir une note...</option>
+                    <option value="C">C</option>
+                    <option value="C#">C#</option>
+                    <option value="D">D</option>
+                    <option value="D#">D#</option>
+                    <option value="E">E</option>
+                    <option value="F">F</option>
+                    <option value="F#">F#</option>
+                    <option value="G">G</option>
+                    <option value="G#">G#</option>
+                    <option value="A">A</option>
+                    <option value="A#">A#</option>
+                    <option value="B">B</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="distance-select">Profondeur de l'horizon (Distance max) :</label>
+                <select id="distance-select">
+                    <option value="1" selected>Distance 1 (Voisins directs)</option>
+                    <option value="2">Distance 2</option>
+                    <option value="3">Distance 3</option>
+                    <option value="4">Distance 4 (Atlas complet)</option>
+                </select>
             </div>
         </section>
-
-<section class="results-container">
-    <h2>Atlas des liaisons géométriques</h2>
-    <div id="layers-wrapper">
-        </div>
-</section>
 
         <section class="piano-container">
             <div class="piano">
@@ -72,10 +81,12 @@
         </section>
 
         <section class="results-container">
-            <h2>Gares Voisines Directes (Distance 1)</h2>
-            <div id="neighbors-list" class="grid-neighbors">
-                </div>
+            <h2>Cartographie Topologique Interactive</h2>
+            <div id="network-container" style="width: 100%; height: 500px; background-color: #1b2026; border-radius: 8px; border: 1px solid #232931; margin-top: 15px;"></div>
         </section>
+
+        <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
     </main>
 
     <script src="/static/js/main.js"></script>

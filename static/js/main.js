@@ -1,88 +1,138 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const stationSelect = document.getElementById('station-select');
+    const setTypeSelect = document.getElementById('set-type-select');
+    const rootSelect = document.getElementById('root-select');
     const distanceSelect = document.getElementById('distance-select');
+    let network = null;
 
-    // Étape A : Charger les 57 stations au démarrage pour remplir le menu
-    async function initStationList() {
-        const response = await fetch('/api/stations');
-        const stations = await response.json();
+    setTypeSelect.addEventListener('change', () => {
+        rootSelect.disabled = false;
+        triggerSearch();
+    });
 
-        stationSelect.innerHTML = ''; // Nettoyage
-        stations.forEach(station => {
-            const opt = document.createElement('option');
-            opt.value = station;
-            opt.textContent = station;
-            // On met Diatonic [D] par défaut
-            if (station === "Diatonic [D]") opt.selected = true;
-            stationSelect.appendChild(opt);
-        });
+    rootSelect.addEventListener('change', triggerSearch);
+    distanceSelect.addEventListener('change', triggerSearch);
 
-        // Premier calcul une fois la liste prête
-        updateExploration();
+    function triggerSearch() {
+        const type = setTypeSelect.value;
+        const root = rootSelect.value;
+
+        if (type && root) {
+            updateExploration(type, root, distanceSelect.value);
+        }
     }
 
-    // Étape B : Mettre à jour l'allumage du piano et la carte des couches
-    async function updateExploration() {
-        const station = stationSelect.value;
-        const distance = distanceSelect.value;
-
-        if (!station) return;
-
-        const response = await fetch(`/api/explore?station=${encodeURIComponent(station)}&distance=${distance}`);
+    async function updateExploration(type, root, distance) {
+        const response = await fetch(`/api/explore?type=${encodeURIComponent(type)}&root=${encodeURIComponent(root)}&distance=${distance}`);
         const data = await response.json();
 
-        // 1. Allumage du piano
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+
+        // 1. Allumage des touches du piano
         document.querySelectorAll('.key').forEach(key => key.classList.remove('active'));
         data.pitches.forEach(pitch => {
             const key = document.querySelector(`.key[data-note="${pitch}"]`);
             if (key) key.classList.add('active');
         });
 
-        // 2. Rendu des couches de distance
-        const wrapper = document.getElementById('layers-wrapper');
-        wrapper.innerHTML = '';
+        // 2. Génération visuelle du Graphe
+        const container = document.getElementById('network-container');
 
-        Object.keys(data.neighbors_by_layer).forEach(layerNum => {
-            const neighbors = data.neighbors_by_layer[layerNum];
-            if (neighbors.length === 0) return;
+        const graphData = {
+            nodes: new vis.DataSet(data.nodes),
+            edges: new vis.DataSet(data.edges)
+        };
 
-            const layerBlock = document.createElement('div');
-            layerBlock.className = 'layer-block';
-            layerBlock.innerHTML = `<h3>🔹 DISTANCE LAYER ${layerNum} (${neighbors.length} stations)</h3>`;
+        const options = {
+            nodes: {
+                shape: 'dot',
+                font: { color: '#ffffff', size: 13, face: 'Segoe UI' },
+                shadow: { enabled: true, color: 'rgba(0,0,0,0.3)', size: 5 }
+            },
+            edges: {
+                color: { color: '#475569', highlight: '#4ea8de', hover: '#4ea8de' },
+                smooth: { type: 'continuous', roundness: 0.4 },
+                width: 2,
+                hoverWidth: 3,
+                font: {
+                    color: '#56cfe1',
+                    size: 11,
+                    background: '#12161a',
+                    face: 'Segoe UI',
+                    align: 'middle' // Aligné pile au milieu de la ligne
+                }
+            },
+            groups: {
+                "Diatonic": { color: { background: '#1d4ed8', border: '#3b82f6' } },
+                "Acoustic": { color: { background: '#0d9488', border: '#14b8a6' } },
+                "Octatonic": { color: { background: '#b91c1c', border: '#ef4444' } },
+                "Whole Tone": { color: { background: '#6d28d9', border: '#8b5cf6' } },
+                "Hexatonic": { color: { background: '#be185d', border: '#ec4899' } },
+                "Harmonic Minor": { color: { background: '#c2410c', border: '#f97316' } },
+                "Harmonic Major": { color: { background: '#a16207', border: '#eab308' } }
+            },
+            physics: {
+                solver: 'forceAtlas2Based',
+                forceAtlas2Based: { gravitationalConstant: -150, centralGravity: 0.02, springLength: 100, springConstant: 0.08 },
+                stabilization: { iterations: 150 }
+            },
+            interaction: { hover: true }
+        };
 
-            const grid = document.createElement('div');
-            grid.className = 'grid-neighbors';
+        if (network !== null) {
+            network.destroy();
+        }
+        network = new vis.Network(container, graphData, options);
 
-            neighbors.forEach(nb => {
-                const card = document.createElement('div');
-                card.className = 'neighbor-card';
-                card.innerHTML = `
-                    <h4>${nb.name}</h4>
-                    <p class="vl"><strong>Triggers :</strong> ${nb.voice_leading}</p>
-                    <p class="path-routing"><strong>Route :</strong> ${nb.path_steps}</p>
-                    <button class="jump-btn" data-destination="${nb.name}">📍 Naviguer ici</button>
-                `;
-                grid.appendChild(card);
-            });
+        // --- REMPLACE UNIQUEMENT LES ÉCOUTEURS HOVER/BLUR À LA FIN DE static/js/main.js ---
 
-            layerBlock.appendChild(grid);
-            wrapper.appendChild(layerBlock);
+        // Au survol : on injecte le texte au milieu de la ligne
+        network.on("hoverEdge", function (params) {
+            const edgeId = params.edge;
+            const edgeData = graphData.edges.get(edgeId);
+
+            if (edgeData && edgeData.textFull) {
+                graphData.edges.update({
+                    id: edgeId,
+                    label: edgeData.textFull,
+                    font: {
+                        color: '#56cfe1',
+                        size: 11,
+                        background: '#12161a',
+                        face: 'Segoe UI'
+                    }
+                });
+            }
         });
 
-        // Événements de navigation par clic
-        document.querySelectorAll('.jump-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const dest = e.target.getAttribute('data-destination');
-                stationSelect.value = dest;
-                updateExploration();
+        // Quand la souris quitte la ligne : EFFACEMENT TOTAL ET GARANTI
+        network.on("blurEdge", function (params) {
+            const edgeId = params.edge;
+            graphData.edges.update({
+                id: edgeId,
+                label: "", // On vide le texte
+                // On force la police à devenir transparente et invisible pour vider le cache de Vis.js
+                font: {
+                    color: 'rgba(0,0,0,0)',
+                    background: 'rgba(0,0,0,0)',
+                    size: 0
+                }
             });
+        });
+
+        // Double-clic pour recentrer
+        network.on("doubleClick", function (params) {
+            if (params.nodes.length > 0) {
+                const clickedNode = params.nodes[0];
+                const match = clickedNode.match(/^([a-zA-Z\s]+)\s\[([A-G#b]+)\]$/);
+                if (match) {
+                    setTypeSelect.value = match[1];
+                    rootSelect.value = match[2];
+                    updateExploration(match[1], match[2], distanceSelect.value);
+                }
+            }
         });
     }
-
-    // Écouteurs
-    stationSelect.addEventListener('change', updateExploration);
-    distanceSelect.addEventListener('change', updateExploration);
-
-    // Lancement
-    initStationList();
 });

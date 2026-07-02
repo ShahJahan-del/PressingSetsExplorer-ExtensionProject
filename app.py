@@ -13,54 +13,88 @@ def get_all_stations():
     """Renvoie la liste brute des 57 stations pour alimenter le menu HTML."""
     return jsonify(sorted(list(uf.all_stations.keys())))
 
+# À remplacer dans app.py
+
 @app.route('/api/explore', methods=['GET'])
 def explore_station():
-    station_name = request.args.get('station', 'Diatonic [D]')
-    max_dist = int(request.args.get('distance', 1)) # Récupère la distance choisie (1, 2, 3...)
+    set_type = request.args.get('type')
+    root_note = request.args.get('root')
+    max_dist = int(request.args.get('distance', 1))
+
+    if not set_type or not root_note:
+        return jsonify({"error": "Paramètres incomplets"}), 400
+
+    station_name = f"{set_type} [{root_note}]"
 
     if station_name not in uf.all_stations:
-        return jsonify({"error": "Station introuvable"}), 404
+        return jsonify({"error": f"La station [{station_name}] n'existe pas."}), 404
 
     pitches = sorted(list(uf.all_stations[station_name]))
 
-    # 1. Calcul de TOUT le graphe universel depuis ce centre
-    global_graph = uf.generate_complete_universe_graph(station_name, max_displaced_notes=1)
+    # 1. Génération du graphe universel complet
+    global_universe = uf.generate_complete_universe_graph(station_name, max_displaced_notes=1)
 
-    # 2. Filtrage des voisins par couches (jusqu'à la distance max demandée)
-    neighbors_by_layer = {}
-    for layer in range(1, max_dist + 1):
-        neighbors_by_layer[layer] = []
-
-    for neighbor in global_graph.nodes():
-        layer = global_graph.nodes[neighbor].get('layer')
+    # 2. Collecter tous les nœuds valides qui entrent dans la distance max
+    valid_nodes = [station_name]
+    for neighbor in global_universe.nodes():
+        layer = global_universe.nodes[neighbor].get('layer')
         if layer and 1 <= layer <= max_dist:
-            # On calcule le chemin pour avoir la conduite des voix globale
-            path = nx.shortest_path(global_graph, source=station_name, target=neighbor)
+            valid_nodes.append(neighbor)
 
-            # Reconstruction du voice-leading pas à pas
-            vl_steps = []
-            for i in range(len(path) - 1):
-                step_analysis = uf.calculate_harmonic_pathway(path[i], path[i+1])
-                vl_steps.append(f"({', '.join(step_analysis['voice_leading'])} )")
+    # 3. Extraire le sous-graphe exact contenant UNIQUEMENT ces nœuds
+    # Cela permet de conserver TOUTES les liaisons existantes entre eux dans l'univers
+    sub_graph = global_universe.subgraph(valid_nodes)
 
-            neighbors_by_layer[layer].append({
-                "name": neighbor,
-                "distance": layer,
-                "path_steps": " -> ".join(path),
-                "voice_leading": " -> ".join(vl_steps)
-            })
+    nodes_data = []
+    edges_data = []
+    seen_pairs = set()
 
-    # 3. Extraction basique des modes (Rotations cycliques du set)
-    # On génère les 7 rotations (ou moins selon la taille du set)
-    modes_detected = []
-    # Logique optionnelle à affiner : pour l'instant on liste les intervalles structurels
-    intervals = [pitches[i] - pitches[0] for i in range(len(pitches))]
+    for node in sub_graph.nodes():
+        family = node.split(" [")[0]
+        is_center = (node == station_name)
+
+        nodes_data.append({
+            "id": node,
+            "label": node,
+            "group": family,
+            "value": 25 if is_center else 14,
+            "borderWidth": 3 if is_center else 1
+        })
+
+        for neighbor in sub_graph.successors(node):
+            pair_key = tuple(sorted([node, neighbor]))
+
+            # --- À remplacer dans la section de boucle des liaisons de app.py ---
+
+            # --- Section de boucle des liaisons dans app.py ---
+        for neighbor in sub_graph.successors(node):
+            pair_key = tuple(sorted([node, neighbor]))
+
+            # --- Section de boucle des liaisons dans app.py ---
+        for neighbor in sub_graph.successors(node):
+            pair_key = tuple(sorted([node, neighbor]))
+
+            if pair_key not in seen_pairs:
+                step_analysis = uf.calculate_harmonic_pathway(node, neighbor)
+
+                # On formate l'étiquette proprement : "NoteDeFrom ⇄ NoteDeTo"
+                vl_labels = [label.replace("->", " ⇄ ") for label in step_analysis['voice_leading']]
+                vl_text = ", ".join(vl_labels)
+
+                edges_data.append({
+                    "from": node,
+                    "to": neighbor,
+                    "label": "",           # Vide par défaut au centre
+                    "textFull": vl_text,   # On stocke le texte propre ici
+                    "arrows": ""
+                })
+                seen_pairs.add(pair_key)
 
     return jsonify({
-        "name": station_name,
+        "center": station_name,
         "pitches": pitches,
-        "intervals": intervals,
-        "neighbors_by_layer": neighbors_by_layer
+        "nodes": nodes_data,
+        "edges": edges_data
     })
 
 if __name__ == '__main__':
