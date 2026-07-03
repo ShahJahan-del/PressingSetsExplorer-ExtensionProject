@@ -31,6 +31,14 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
     };
 
+    // Liste des modes pour chaque famille asymétrique (ordonnés par degré)
+    const familyModes = {
+        "Diatonic": ["Major/Ionian", "Dorian", "Phrygian", "Lydian", "Mixolydian", "Aeolian", "Locrian"],
+        "Acoustic": ["Acoustic (Lydian b7)", "Major Locrian", "Altered b6", "Melodic Minor", "Dorian b2", "Lydian Augmented", "Bartok/Lydian Dominant"],
+        "Harmonic Minor": ["Harmonic Minor", "Locrian ♮6", "Ionian ♯5", "Dorian ♯4", "Phrygian Dominant", "Lydian ♯2", "Ultralocrian"],
+        "Harmonic Major": ["Harmonic Major", "Dorian b5", "Phrygian b4", "Lydian b3", "Mixolydian b2", "Lydian Augmented ♯2", "Locrian bb7"]
+    };
+
     // Injecte dynamiquement les bonnes options de transposition dans le menu déroulant
     function updateRootOptions(setType) {
         rootSelect.innerHTML = '<option value="" disabled selected>-- Transposition --</option>';
@@ -250,6 +258,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+
+        // Déclenche l'affichage du panneau des modes correspondant au choix actuel
+        displayCollectionModes(type, root);
     }
 
     function displayKeyboardMatches(matches) {
@@ -317,10 +328,76 @@ document.addEventListener('DOMContentLoaded', () => {
                 matchesContainer.style.display = 'none';
 
                 updateExploration(family, root, distanceSelect.value);
+                displayCollectionModes(family, root); // Force la mise à jour des modes
             });
         });
 
         matchesContainer.style.display = 'block';
+    }
+
+function displayCollectionModes(family, root) {
+        const container = document.getElementById('collection-modes-container');
+        const badgeDiv = document.getElementById('selected-collection-badge');
+        const modesList = document.getElementById('modes-list');
+
+        // 1. Affichage du Badge Vert de la collection
+        // Traduction visuelle si c'est un set symétrique pour l'affichage du badge
+        let shortName = root;
+        if (["Octatonic", "Whole Tone", "Hexatonic"].includes(family)) {
+            const symNames = { "C": "0,1", "C#": "1,2", "D": "2,3", "Eb": "3,4" };
+            shortName = symNames[root] || root;
+        }
+
+        badgeDiv.innerHTML = `
+            <span style="background-color: #84cc16; color: #ffffff; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                ${shortName} ${family.substring(0, 3).toUpperCase()}
+            </span>
+            <span style="color: #64748b; margin-left: 10px; font-size: 14px;">(${root} ${family})</span>
+        `;
+
+        // 2. Génération de la liste des modes
+        modesList.innerHTML = '';
+
+        if (familyModes[family]) {
+            // C'est un set asymétrique : on boucle sur ses modes
+            familyModes[family].forEach((modeName, index) => {
+                const li = document.createElement('li');
+                li.style.display = 'flex';
+                li.style.justifyContent = 'space-between';
+                li.style.alignItems = 'center';
+                li.style.marginBottom = '10px';
+                li.style.color = '#94a3b8';
+                li.style.fontSize = '14px';
+
+                li.innerHTML = `
+                    <span><span style="color: #475569; margin-right: 8px;">▪</span> ${modeName}</span>
+                    <button class="play-mode-btn" data-degree="${index}" style="
+                        background-color: #ffffff;
+                        color: #0f172a;
+                        border: 1px solid #cbd5e1;
+                        padding: 6px 12px;
+                        border-radius: 4px;
+                        font-weight: 500;
+                        cursor: pointer;
+                        font-size: 12px;
+                        transition: all 0.2s;">
+                        PLAY THIS MODE
+                    </button>
+                `;
+                modesList.appendChild(li);
+            });
+        } else {
+            // C'est un set symétrique (Octatonic, Whole Tone, Hexatonic)
+            const li = document.createElement('li');
+            li.style.color = '#64748b';
+            li.style.fontStyle = 'italic';
+            li.style.padding = '10px 0';
+            li.innerText = "Cette collection est symétrique (à transpositions limitées) et ne possède pas de modes distincts exploitables de manière diatonique.";
+            modesList.appendChild(li);
+        }
+
+        // Rendre le conteneur visible
+        container.style.display = 'block';
     }
 });
 
