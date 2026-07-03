@@ -3,18 +3,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const rootSelect = document.getElementById('root-select');
     const distanceSelect = document.getElementById('distance-select');
     let network = null;
+    let isAutomaticUpdate = false;
     const noteMap = {
         "0": "C", "1": "C#", "2": "D", "3": "D#", "4": "E", "5": "F",
         "6": "F#", "7": "G", "8": "G#", "9": "A", "10": "A#", "11": "B"
     };
 
     setTypeSelect.addEventListener('change', () => {
+        if (isAutomaticUpdate) return; // Ignore si c'est une mise à jour auto
         rootSelect.disabled = false;
         triggerSearch();
     });
 
-    rootSelect.addEventListener('change', triggerSearch);
-    distanceSelect.addEventListener('change', triggerSearch);
+    rootSelect.addEventListener('change', () => {
+        if (isAutomaticUpdate) return; // Ignore si c'est une mise à jour auto
+        triggerSearch();
+    });
+
+    distanceSelect.addEventListener('change', () => {
+        if (isAutomaticUpdate) return; // Ignore si c'est une mise à jour auto
+        triggerSearch();
+    });
 
     function triggerSearch() {
         const type = setTypeSelect.value;
@@ -28,6 +37,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // À AJOUTER APRÈS LA FONCTION triggerSearch() :
     document.querySelectorAll('.key').forEach(key => {
         key.addEventListener('click', () => {
+            // Si on était en mode "Mise à jour automatique", on ignore le clic parasite
+            if (isAutomaticUpdate) return;
+
             key.classList.toggle('active');
 
             // Traduction des touches actives en vraies notes textuelles
@@ -36,10 +48,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // MODIFICATION DANS L'ÉCOUTEUR DE CLIC DU PIANO :
             if (activePitches.length >= 3) {
-                // On réinitialise les menus si on joue sur le clavier libre
+                isAutomaticUpdate = true;
                 setTypeSelect.value = "";
                 rootSelect.value = "";
                 rootSelect.disabled = true;
+                isAutomaticUpdate = false;
 
                 fetch('/api/identify', {
                     method: 'POST',
@@ -52,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     displayKeyboardMatches(data.matches);
                 });
             } else if (activePitches.length > 0 && activePitches.length < 3) {
-                // Cas où l'utilisateur a cliqué 1 ou 2 notes : message d'attente
                 const matchesContainer = document.getElementById('keyboard-matches-container');
                 const matchesList = document.getElementById('matches-list');
                 const matchCountSpan = document.getElementById('match-count');
@@ -61,7 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 matchesList.innerHTML = '<li style="color: #64748b; padding: 5px; font-style: italic;">Veuillez sélectionner au moins 3 notes pour identifier les collections parentes.</li>';
                 matchesContainer.style.display = 'block';
             } else {
-                // Plus aucune note n'est cochée
                 document.getElementById('keyboard-matches-container').style.display = 'none';
             }
         });
@@ -79,12 +90,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // 1. Allumage des touches du piano
         document.querySelectorAll('.key').forEach(key => key.classList.remove('active'));
         data.pitches.forEach(pitch => {
-            // Trouve le numéro (0-11) correspondant à la note textuelle
-            const numericKeyStr = Object.keys(noteMap).find(key => noteMap[key] === pitch);
-            if (numericKeyStr) {
-                const keyEl = document.querySelector(`.key[data-note="${numericKeyStr}"]`);
-                if (keyEl) keyEl.classList.add('active');
-            }
+            // L'API renvoyant des chiffres, on cible directement l'attribut data-note
+            const keyEl = document.querySelector(`.key[data-note="${pitch}"]`);
+            if (keyEl) keyEl.classList.add('active');
         });
 
         // 2. Génération visuelle du Graphe
@@ -235,15 +243,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const family = btn.getAttribute('data-family');
                 const root = btn.getAttribute('data-root');
 
-                // 1. On met à jour les menus déroulants
+                // On active le drapeau pour empêcher les écouteurs change de court-circuiter l'application
+                isAutomaticUpdate = true;
                 setTypeSelect.value = family;
-                rootSelect.disabled = false; // Réactivation indispensable de la racine !
+                rootSelect.disabled = false;
                 rootSelect.value = root;
+                isAutomaticUpdate = false; // On relâche le drapeau
 
-                // 2. On masque le panneau temporairement
+                // On masque le panneau temporairement
                 matchesContainer.style.display = 'none';
 
-                // 3. On force la mise à jour globale (Graphe + Piano)
+                // On force l'unique mise à jour globale (Graphe + Piano)
                 updateExploration(family, root, distanceSelect.value);
             });
         });
