@@ -13,7 +13,6 @@ def get_all_stations():
     """Renvoie la liste brute des 57 stations pour alimenter le menu HTML."""
     return jsonify(sorted(list(uf.all_stations.keys())))
 
-# À remplacer dans app.py
 
 @app.route('/api/explore', methods=['GET'])
 def explore_station():
@@ -24,8 +23,19 @@ def explore_station():
     if not set_type or not root_note:
         return jsonify({"error": "Paramètres incomplets"}), 400
 
+    # 1. Correction des enharmonies pour correspondre aux clés de uf.all_stations
+    enharmonic_mapping = {
+        "D#": "Eb",
+        "G#": "Ab",
+        "A#": "Bb"
+    }
+    if root_note in enharmonic_mapping:
+        root_note = enharmonic_mapping[root_note]
+
+    # 2. Construction directe du nom de la station (les valeurs JS matchent désormais avec Python)
     station_name = f"{set_type} [{root_note}]"
 
+    # 3. Vérification de sécurité standard
     if station_name not in uf.all_stations:
         return jsonify({"error": f"La station [{station_name}] n'existe pas."}), 404
 

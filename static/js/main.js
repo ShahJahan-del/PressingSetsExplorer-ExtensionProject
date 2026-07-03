@@ -9,19 +9,63 @@ document.addEventListener('DOMContentLoaded', () => {
         "6": "F#", "7": "G", "8": "G#", "9": "A", "10": "A#", "11": "B"
     };
 
+    // Les 12 transpositions chromatiques standard affichées pour l'utilisateur
+    const standardRoots = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+    // Les transpositions limitées mappées sur les vraies clés de ton dictionnaire Python
+    const symmetricRoots = {
+        "Octatonic": [
+            { value: "C", text: "Oct(0,1)" },
+            { value: "C#", text: "Oct(1,2)" },
+            { value: "D", text: "Oct(2,3)" }
+        ],
+        "Whole Tone": [
+            { value: "C", text: "WT0" },
+            { value: "C#", text: "WT1" }
+        ],
+        "Hexatonic": [
+            { value: "C", text: "Hex(0,1)" },
+            { value: "C#", text: "Hex(1,2)" },
+            { value: "D", text: "Hex(2,3)" },
+            { value: "Eb", text: "Hex(3,4)" }
+        ]
+    };
+
+    // Injecte dynamiquement les bonnes options de transposition dans le menu déroulant
+    function updateRootOptions(setType) {
+        rootSelect.innerHTML = '<option value="" disabled selected>-- Transposition --</option>';
+
+        if (symmetricRoots[setType]) {
+            symmetricRoots[setType].forEach(root => {
+                const opt = document.createElement('option');
+                opt.value = root.value;
+                opt.textContent = root.text;
+                rootSelect.appendChild(opt);
+            });
+        } else {
+            standardRoots.forEach(note => {
+                const opt = document.createElement('option');
+                opt.value = note;
+                opt.textContent = note;
+                rootSelect.appendChild(opt);
+            });
+        }
+    }
+
     setTypeSelect.addEventListener('change', () => {
-        if (isAutomaticUpdate) return; // Ignore si c'est une mise à jour auto
+        if (isAutomaticUpdate) return;
+        updateRootOptions(setTypeSelect.value);
         rootSelect.disabled = false;
         triggerSearch();
     });
 
     rootSelect.addEventListener('change', () => {
-        if (isAutomaticUpdate) return; // Ignore si c'est une mise à jour auto
+        if (isAutomaticUpdate) return;
         triggerSearch();
     });
 
     distanceSelect.addEventListener('change', () => {
-        if (isAutomaticUpdate) return; // Ignore si c'est une mise à jour auto
+        if (isAutomaticUpdate) return;
         triggerSearch();
     });
 
@@ -184,11 +228,25 @@ document.addEventListener('DOMContentLoaded', () => {
         network.on("doubleClick", function (params) {
             if (params.nodes.length > 0) {
                 const clickedNode = params.nodes[0];
-                const match = clickedNode.match(/^([a-zA-Z\s]+)\s\[([A-G#b]+)\]$/);
+                const match = clickedNode.match(/^([a-zA-Z\s]+)\s\[([A-G#b0-9,]+)\]$/);
                 if (match) {
-                    setTypeSelect.value = match[1];
-                    rootSelect.value = match[2];
-                    updateExploration(match[1], match[2], distanceSelect.value);
+                    let family = match[1];
+                    let root = match[2];
+
+                    // Traduction inverse Bémol -> Dièse pour forcer la synchronisation de l'IHM
+                    const flatToSharp = { "Eb": "D#", "Ab": "G#", "Bb": "A#" };
+                    if (flatToSharp[root]) {
+                        root = flatToSharp[root];
+                    }
+
+                    isAutomaticUpdate = true;
+                    setTypeSelect.value = family;
+                    updateRootOptions(family); // Régénère le bon set d'options (standards ou limitées)
+                    rootSelect.disabled = false;
+                    rootSelect.value = root;
+                    isAutomaticUpdate = false;
+
+                    updateExploration(family, root, distanceSelect.value);
                 }
             }
         });
@@ -241,19 +299,23 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.match-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const family = btn.getAttribute('data-family');
-                const root = btn.getAttribute('data-root');
+                let root = btn.getAttribute('data-root');
 
-                // On active le drapeau pour empêcher les écouteurs change de court-circuiter l'application
+                // Traduction inverse Bémol -> Dièse pour forcer la synchronisation de l'IHM
+                const flatToSharp = { "Eb": "D#", "Ab": "G#", "Bb": "A#" };
+                if (flatToSharp[root]) {
+                    root = flatToSharp[root];
+                }
+
                 isAutomaticUpdate = true;
                 setTypeSelect.value = family;
+                updateRootOptions(family); // Régénère les transpositions adaptées
                 rootSelect.disabled = false;
                 rootSelect.value = root;
-                isAutomaticUpdate = false; // On relâche le drapeau
+                isAutomaticUpdate = false;
 
-                // On masque le panneau temporairement
                 matchesContainer.style.display = 'none';
 
-                // On force l'unique mise à jour globale (Graphe + Piano)
                 updateExploration(family, root, distanceSelect.value);
             });
         });
