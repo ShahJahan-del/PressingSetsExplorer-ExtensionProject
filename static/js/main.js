@@ -34,7 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const activePitches = Array.from(document.querySelectorAll('.key.active'))
                                        .map(k => noteMap[k.getAttribute('data-note')]);
 
-            if (activePitches.length > 0) {
+            // MODIFICATION DANS L'ÉCOUTEUR DE CLIC DU PIANO :
+            if (activePitches.length >= 3) {
+                // On réinitialise les menus si on joue sur le clavier libre
                 setTypeSelect.value = "";
                 rootSelect.value = "";
                 rootSelect.disabled = true;
@@ -46,11 +48,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(res => res.json())
                 .then(data => {
-                    // Force l'affichage du conteneur HTML avant d'injecter la liste
                     document.getElementById('keyboard-matches-container').style.display = 'block';
                     displayKeyboardMatches(data.matches);
                 });
+            } else if (activePitches.length > 0 && activePitches.length < 3) {
+                // Cas où l'utilisateur a cliqué 1 ou 2 notes : message d'attente
+                const matchesContainer = document.getElementById('keyboard-matches-container');
+                const matchesList = document.getElementById('matches-list');
+                const matchCountSpan = document.getElementById('match-count');
+
+                matchCountSpan.innerText = "0";
+                matchesList.innerHTML = '<li style="color: #64748b; padding: 5px; font-style: italic;">Veuillez sélectionner au moins 3 notes pour identifier les collections parentes.</li>';
+                matchesContainer.style.display = 'block';
             } else {
+                // Plus aucune note n'est cochée
                 document.getElementById('keyboard-matches-container').style.display = 'none';
             }
         });
@@ -218,16 +229,21 @@ document.addEventListener('DOMContentLoaded', () => {
             matchesList.appendChild(li);
         });
 
+        // Écouteur des boutons de la liste
         document.querySelectorAll('.match-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const family = btn.getAttribute('data-family');
                 const root = btn.getAttribute('data-root');
 
+                // 1. On met à jour les menus déroulants
                 setTypeSelect.value = family;
-                setTypeSelect.dispatchEvent(new Event('change'));
+                rootSelect.disabled = false; // Réactivation indispensable de la racine !
                 rootSelect.value = root;
+
+                // 2. On masque le panneau temporairement
                 matchesContainer.style.display = 'none';
 
+                // 3. On force la mise à jour globale (Graphe + Piano)
                 updateExploration(family, root, distanceSelect.value);
             });
         });
