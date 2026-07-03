@@ -3,6 +3,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const rootSelect = document.getElementById('root-select');
     const distanceSelect = document.getElementById('distance-select');
     let network = null;
+    const noteMap = {
+        "0": "C", "1": "C#", "2": "D", "3": "D#", "4": "E", "5": "F",
+        "6": "F#", "7": "G", "8": "G#", "9": "A", "10": "A#", "11": "B"
+    };
 
     setTypeSelect.addEventListener('change', () => {
         rootSelect.disabled = false;
@@ -21,6 +25,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // À AJOUTER APRÈS LA FONCTION triggerSearch() :
+    document.querySelectorAll('.key').forEach(key => {
+        key.addEventListener('click', () => {
+            key.classList.toggle('active');
+
+            // Traduction des touches actives en vraies notes textuelles
+            const activePitches = Array.from(document.querySelectorAll('.key.active'))
+                                       .map(k => noteMap[k.getAttribute('data-note')]);
+
+            if (activePitches.length > 0) {
+                setTypeSelect.value = "";
+                rootSelect.value = "";
+                rootSelect.disabled = true;
+
+                fetch('/api/identify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pitches: activePitches })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    // Force l'affichage du conteneur HTML avant d'injecter la liste
+                    document.getElementById('keyboard-matches-container').style.display = 'block';
+                    displayKeyboardMatches(data.matches);
+                });
+            } else {
+                document.getElementById('keyboard-matches-container').style.display = 'none';
+            }
+        });
+    });
+
     async function updateExploration(type, root, distance) {
         const response = await fetch(`/api/explore?type=${encodeURIComponent(type)}&root=${encodeURIComponent(root)}&distance=${distance}`);
         const data = await response.json();
@@ -33,8 +68,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // 1. Allumage des touches du piano
         document.querySelectorAll('.key').forEach(key => key.classList.remove('active'));
         data.pitches.forEach(pitch => {
-            const key = document.querySelector(`.key[data-note="${pitch}"]`);
-            if (key) key.classList.add('active');
+            // Trouve le numéro (0-11) correspondant à la note textuelle
+            const numericKeyStr = Object.keys(noteMap).find(key => noteMap[key] === pitch);
+            if (numericKeyStr) {
+                const keyEl = document.querySelector(`.key[data-note="${numericKeyStr}"]`);
+                if (keyEl) keyEl.classList.add('active');
+            }
         });
 
         // 2. Génération visuelle du Graphe
@@ -57,11 +96,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 width: 2,
                 hoverWidth: 3,
                 font: {
-                    color: '#56cfe1',
-                    size: 11,
-                    background: '#12161a',
+                    color: 'rgba(0,0,0,0)',
+                    size: 0,
+                    background: 'rgba(0,0,0,0)',
                     face: 'Segoe UI',
-                    align: 'middle' // Aligné pile au milieu de la ligne
+                    align: 'middle'
                 }
             },
             groups: {
@@ -135,4 +174,65 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    function displayKeyboardMatches(matches) {
+        const matchesContainer = document.getElementById('keyboard-matches-container');
+        const matchesList = document.getElementById('matches-list');
+        const matchCountSpan = document.getElementById('match-count');
+
+        matchesList.innerHTML = '';
+        if (matches.length === 0) {
+            matchesList.innerHTML = '<li style="color: #64748b; padding: 5px;">Aucun set ne contient toutes ces notes simultanément.</li>';
+            matchCountSpan.innerText = "0";
+            matchesContainer.style.display = 'block';
+            return;
+        }
+
+        matchCountSpan.innerText = matches.length;
+
+        matches.forEach(m => {
+            const li = document.createElement('li');
+            li.style.display = 'flex';
+            li.style.alignItems = 'center';
+            li.style.marginBottom = '8px';
+            li.style.fontFamily = 'Segoe UI, sans-serif';
+            li.style.color = '#94a3b8';
+
+            const missingText = m.missing.length > 0 ? `— missing ${m.missing.join(', ')}` : '— Complet ! Exact Match !';
+
+            li.innerHTML = `
+                <span style="margin-right: 10px;">• Subset of</span>
+                <button class="match-btn" data-family="${m.family}" data-root="${m.root}" style="
+                    background-color: #84cc16;
+                    color: #ffffff;
+                    border: none;
+                    padding: 4px 10px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    font-size: 13px;">
+                    ${m.station_name}
+                </button>
+                <span style="margin-left: 10px; font-size: 13px; color: #64748b;">${missingText}</span>
+            `;
+            matchesList.appendChild(li);
+        });
+
+        document.querySelectorAll('.match-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const family = btn.getAttribute('data-family');
+                const root = btn.getAttribute('data-root');
+
+                setTypeSelect.value = family;
+                setTypeSelect.dispatchEvent(new Event('change'));
+                rootSelect.value = root;
+                matchesContainer.style.display = 'none';
+
+                updateExploration(family, root, distanceSelect.value);
+            });
+        });
+
+        matchesContainer.style.display = 'block';
+    }
 });
+
