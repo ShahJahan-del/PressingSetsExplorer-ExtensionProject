@@ -61,6 +61,34 @@
                     <option value="4">Distance 4 (Atlas complet)</option>
                 </select>
             </div>
+
+            <div id="controls-analysis" style="display: none; width: 100%; background-color: #1e293b; padding: 20px; border-radius: 8px; box-sizing: border-box;">
+                <h3 style="color: #cbd5e1; font-size: 14px; margin-top: 0; margin-bottom: 15px; font-family: sans-serif;">Saisie de la pièce musicale</h3>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button id="btn-add-current" type="button" style="background-color: #3b82f6; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">
+                        + Ajouter le Set Actuel
+                    </button>
+                    <button id="btn-clear-analysis" type="button" style="background-color: #64748b; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        Effacer la liste
+                    </button>
+                </div>
+
+                <div id="analysis-sets-pool" style="min-height: 50px; background-color: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; box-sizing: border-box;">
+                    <span style="color: #64748b; font-style: italic; font-size: 13px;" id="empty-pool-msg">Aucun set ajouté. Utilisez les listes ou le piano pour composer le morceau.</span>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="color: #94a3b8; font-size: 13px; font-family: sans-serif;">Centre Macro-Harmonique :</label>
+                        <select id="analysis-center-select" style="background-color: #0f172a; color: white; border: 1px solid #334155; padding: 8px; border-radius: 4px; min-width: 150px;"></select>
+                    </div>
+
+                    <button id="btn-run-analysis" type="button" style="background-color: #84cc16; color: white; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; margin-left: auto;">
+                        ⚡ Lancer l'Analyse du Morceau
+                    </button>
+                </div>
+            </div>
         </section>
 
         <section class="piano-container">
@@ -100,6 +128,36 @@
         <section class="results-container">
             <h2>Cartographie Topologique Interactive</h2>
             <div id="network-container" style="width: 100%; height: 500px; background-color: #1b2026; border-radius: 8px; border: 1px solid #232931; margin-top: 15px;"></div>
+            <div class="analysis-legend-container">
+                <h4>LÉGENDE GÉOMÉTRIQUE</h4>
+                <div class="legend-section">
+                    <h5>Formes des Stations</h5>
+                    <div class="legend-item">
+                        <span class="legend-shape circle-shape"></span>
+                        <span><b>Cercle :</b> Set présent dans le morceau</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-shape diamond-shape"></span>
+                        <span><b>Losange :</b> Station virtuelle (Pont de transition)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-shape center-shape"></span>
+                        <span><b>Bordure Fluo :</b> Centre macro-harmonique</span>
+                    </div>
+                </div>
+
+    <div class="legend-section">
+        <h5>Types de Chemins</h5>
+        <div class="legend-item">
+            <span class="legend-line line-main"></span>
+            <span><b>Ligne Verte :</b> Maillage / Enchaînement direct</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-line line-backup"></span>
+            <span><b>Pointillés de Couleur :</b> Route de secours (1 couleur par îlot)</span>
+        </div>
+    </div>
+</div>
         </section>
 
         <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
@@ -109,4 +167,3 @@
     <script src="/static/js/main.js"></script>
 </body>
 </html>
-

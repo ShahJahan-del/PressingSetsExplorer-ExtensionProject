@@ -401,3 +401,243 @@ function displayCollectionModes(family, root) {
     }
 });
 
+// =========================================================================
+    // EXTENSION : LOGIQUE DU MODE ANALYSE (AJOUTÉE SANS MODIFIER L'EXISTANT)
+    // =========================================================================
+
+    let analysisSetsArray = [];
+    let currentMode = 'exploration';
+
+    // 1. Gestion du changement d'onglet (Navigation)
+    const navButtons = document.querySelectorAll('.nav-btn');
+    const exploreBlock = document.getElementById('controls-exploration');
+    const analyzeBlock = document.getElementById('controls-analysis');
+    const modesContainer = document.getElementById('collection-modes-container');
+
+    navButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Gestion active de la classe CSS sur les boutons
+            navButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const tabTarget = btn.getAttribute('data-tab');
+
+            if (tabTarget === 'analyze') {
+                currentMode = 'analysis';
+                if (exploreBlock) exploreBlock.style.display = 'none';
+                if (analyzeBlock) analyzeBlock.style.display = 'block';
+                if (modesContainer) modesContainer.style.display = 'none'; // Masque les modes simples
+                document.querySelector('.analysis-legend-container').style.display = 'block';
+                updateAnalysisDropdown();
+            } else {
+                currentMode = 'exploration';
+                if (exploreBlock) exploreBlock.style.display = 'block';
+                if (analyzeBlock) analyzeBlock.style.display = 'none';
+                // Laisse le moteur d'exploration gérer la visibilité de son conteneur de modes
+                document.querySelector('.analysis-legend-container').style.display = 'none';
+            }
+        });
+    });
+
+    // 2. Synchronisation du menu déroulant du Centre Macro-Harmonique
+    function updateAnalysisDropdown() {
+        const selectCenter = document.getElementById('analysis-center-select');
+        if (!selectCenter) return;
+
+        const previousValue = selectCenter.value;
+        selectCenter.innerHTML = '';
+
+        if (analysisSetsArray.length === 0) {
+            selectCenter.innerHTML = '<option value="" disabled selected>Ajoutez des sets...</option>';
+            return;
+        }
+
+        analysisSetsArray.forEach(setStr => {
+            const opt = document.createElement('option');
+            opt.value = setStr;
+            opt.textContent = setStr;
+            selectCenter.appendChild(opt);
+        });
+
+        if (analysisSetsArray.includes(previousValue)) {
+            selectCenter.value = previousValue;
+        }
+    }
+
+    // 3. Rendu visuel des badges du morceau
+    function refreshAnalysisBadges() {
+        const pool = document.getElementById('analysis-sets-pool');
+        if (!pool) return;
+
+        pool.innerHTML = '';
+
+        if (analysisSetsArray.length === 0) {
+            pool.innerHTML = '<span style="color: #64748b; font-style: italic; font-size: 13px;" id="empty-pool-msg">Aucun set ajouté. Utilisez les listes ou le piano pour composer le morceau.</span>';
+            return;
+        }
+
+        analysisSetsArray.forEach((setStr, index) => {
+            const badge = document.createElement('span');
+            badge.style.cssText = "background-color: #334155; color: #f8fafc; padding: 6px 12px; border-radius: 4px; font-size: 12px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid #475569; font-family: sans-serif;";
+            badge.innerHTML = `
+                ${setStr}
+                <span class="remove-target-btn" data-idx="${index}" style="color: #ef4444; cursor: pointer; font-weight: bold; font-size: 14px; margin-left: 4px;">&times;</span>
+            `;
+            pool.appendChild(badge);
+        });
+
+        // Événement de suppression unitaire
+        document.querySelectorAll('.remove-target-btn').forEach(b => {
+            b.addEventListener('click', (e) => {
+                const targetIndex = parseInt(e.target.getAttribute('data-idx'));
+                analysisSetsArray.splice(targetIndex, 1);
+                refreshAnalysisBadges();
+                updateAnalysisDropdown();
+            });
+        });
+    }
+
+    // 4. Action : Bouton Ajouter le set actuel
+    const btnAdd = document.getElementById('btn-add-current');
+    if (btnAdd) {
+        btnAdd.addEventListener('click', () => {
+            const currentType = document.getElementById('set-type-select').value;
+            const currentRoot = document.getElementById('root-select').value;
+
+            if (!currentType || !currentRoot) {
+                alert("Veuillez d'abord sélectionner un Set valide (via les menus ou en double-cliquant sur la topologie).");
+                return;
+            }
+
+            const formatName = `${currentType} [${currentRoot}]`;
+            if (!analysisSetsArray.includes(formatName)) {
+                analysisSetsArray.push(formatName);
+                refreshAnalysisBadges();
+                updateAnalysisDropdown();
+            }
+        });
+    }
+
+    // 5. Action : Bouton Effacer
+    const btnClear = document.getElementById('btn-clear-analysis');
+    if (btnClear) {
+        btnClear.addEventListener('click', () => {
+            analysisSetsArray = [];
+            refreshAnalysisBadges();
+            updateAnalysisDropdown();
+        });
+    }
+
+    // 6. Action : Calcul de la topologie du morceau (Fetch /api/analyze)
+    const btnRun = document.getElementById('btn-run-analysis');
+    if (btnRun) {
+        btnRun.addEventListener('click', async () => {
+            const centerTonal = document.getElementById('analysis-center-select').value;
+
+            if (!centerTonal) {
+                alert("Sélectionnez le centre macro-harmonique (le repère de votre morceau).");
+                return;
+            }
+            if (analysisSetsArray.length < 2) {
+                alert("Ajoutez au moins 2 sets à la liste pour pouvoir analyser les transitions.");
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        center: centerTonal,
+                        sets: analysisSetsArray
+                    })
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    alert(`Erreur Serveur Python (${res.status}) : ${errorText}`);
+                    return;
+                }
+
+                const data = await res.json();
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                // Génération du réseau Vis.js sur le conteneur existant sans perturber le reste
+                const netContainer = document.getElementById('network-container');
+                const analysisNodes = new vis.DataSet(data.nodes);
+                const analysisEdges = new vis.DataSet(data.edges);
+
+                const analysisOptions = {
+                    nodes: {
+                        shape: 'dot',
+                        font: { color: '#ffffff', size: 13, face: 'Segoe UI' },
+                        shadow: { enabled: true, color: 'rgba(0,0,0,0.3)', size: 5 }
+                    },
+                    edges: {
+                        color: { color: '#475569', highlight: '#4ea8de', hover: '#4ea8de' },
+                        smooth: { type: 'continuous', roundness: 0.4 },
+                        width: 1.2, // Affiné pour plus de discrétion visuelle
+                        hoverWidth: 3,
+                        font: {
+                            color: 'rgba(0,0,0,0)',
+                            size: 0,
+                            background: 'rgba(0,0,0,0)',
+                            face: 'Segoe UI',
+                            align: 'middle'
+                        } // Labels invisibles au repos
+                    },
+                    // Réintégration complète du dictionnaire de groupes pour le code couleur harmonique
+                    groups: {
+                        "Diatonic": { color: { background: '#1d4ed8', border: '#3b82f6' } },
+                        "Acoustic": { color: { background: '#0d9488', border: '#14b8a6' } },
+                        "Octatonic": { color: { background: '#b91c1c', border: '#ef4444' } },
+                        "Whole Tone": { color: { background: '#6d28d9', border: '#8b5cf6' } },
+                        "Hexatonic": { color: { background: '#be185d', border: '#ec4899' } },
+                        "Harmonic Minor": { color: { background: '#c2410c', border: '#f97316' } },
+                        "Harmonic Major": { color: { background: '#a16207', border: '#eab308' } }
+                    },
+                    physics: {
+                        solver: 'forceAtlas2Based',
+                        forceAtlas2Based: { gravitationalConstant: -150, centralGravity: 0.02, springLength: 100, springConstant: 0.08 },
+                        stabilization: { iterations: 150 }
+                    },
+                    interaction: { hover: true }
+                };
+
+                // On écrase proprement l'instance globale du réseau
+                if (typeof network !== 'undefined' && network !== null && typeof network.destroy === 'function') {
+                    network.destroy();
+                }
+                network = new vis.Network(netContainer, { nodes: analysisNodes, edges: analysisEdges }, analysisOptions);
+
+                // Affichage du Voice leading au survol des chemins du morceau
+                network.on("hoverEdge", function (p) {
+                    const eId = p.edge;
+                    const eData = analysisEdges.get(eId);
+                    if (eData && eData.textFull) {
+                        analysisEdges.update({
+                            id: eId,
+                            label: eData.textFull,
+                            font: { color: '#56cfe1', size: 11, background: '#12161a', face: 'Segoe UI' }
+                        });
+                    }
+                });
+
+                network.on("blurEdge", function (p) {
+                    analysisEdges.update({
+                        id: p.edge,
+                        label: "",
+                        font: { color: 'rgba(0,0,0,0)', size: 0 }
+                    });
+                });
+
+            } catch (err) {
+                console.error("Détail du plantage JavaScript :", err);
+                alert(`Erreur lors de la communication avec l'API d'analyse : ${err.message}`);
+            }
+        });
+    }
+

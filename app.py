@@ -1,6 +1,7 @@
 from flask import Flask, render_template, jsonify, request
 import utility_functions as uf
 import networkx as nx
+import piece_analyzer as pa
 
 app = Flask(__name__)
 
@@ -145,6 +146,141 @@ def identify_sets():
 
     matches = sorted(matches, key=lambda x: x['missing_count'])
     return jsonify({"matches": matches})
+
+import random
+
+@app.route('/api/analyze', methods=['POST'])
+def analyze_piece():
+    data = request.get_json() or {}
+    center_station = data.get('center')
+    active_sets = data.get('sets', [])
+
+    if not center_station or not active_sets:
+        return jsonify({"error": "Paramètres manquants"}), 400
+
+    # 1. Calcul du graphe local de la pièce
+    try:
+        analysis_graph = pa.build_piece_harmonic_graph(center_station, active_sets, max_step_distance=1)
+    except Exception as e:
+        return jsonify({"error": f"Erreur build_piece_harmonic_graph: {str(e)}"}), 500
+
+    if not analysis_graph:
+        return jsonify({"error": "Le moteur d'analyse n'a généré aucun graphe."}), 500
+
+    # 2. Récupération du rapport d'archipels
+    archipelago_routes = {}
+    try:
+        archipelago_routes = pa.print_analytical_report(analysis_graph, center_station)
+    except Exception as e:
+        print(f"⚠️ Note: print_analytical_report a levé une exception: {e}")
+
+    nodes_data = []
+    edges_data = []
+    seen_pairs = set()
+
+    # Palette de couleurs uniques pour différencier chaque route de secours
+    def generate_random_color():
+        return f"#{random.randint(80, 220):02x}{random.randint(80, 220):02x}{random.randint(80, 220):02x}"
+
+    # 3. Formatage ultra-sécurisé des nœuds
+    for node in analysis_graph.nodes():
+        node_str = str(node)
+        family = node_str.split(" [")[0] if " [" in node_str else "Unknown"
+        is_center = (node_str == str(center_station))
+
+        node_definition = {
+            "id": node_str,
+            "label": node_str,
+            "group": family, # Laisse Vis.js appliquer le code couleur natif défini côté client
+            "value": 25 if is_center else 14
+        }
+
+        # Ajout d'une bordure distincte pour le centre macro-harmonique
+        if is_center:
+            node_definition["borderWidth"] = 4
+            node_definition["color"] = { "border": "#bef264" }
+
+        nodes_data.append(node_definition)
+
+    # 4. Formatage ultra-sécurisé des liaisons directes du morceau (Ligne unifiée, sans flèche graphique)
+    MAIN_MESH_COLOR = "#84cc16"
+    for node in analysis_graph.nodes():
+        for neighbor in analysis_graph.successors(node):
+            node_str = str(node)
+            neighbor_str = str(neighbor)
+            pair_key = tuple(sorted([node_str, neighbor_str]))
+
+            if pair_key not in seen_pairs:
+                try:
+                    raw_vl = analysis_graph[node][neighbor].get('voice_leading', [])
+                    if isinstance(raw_vl, list):
+                        vl_labels = [str(item).replace("->", " ⇄ ") for item in raw_vl]
+                        vl_text = ", ".join(vl_labels)
+                    else:
+                        vl_text = str(raw_vl).replace("->", " ⇄ ")
+                except Exception:
+                    vl_text = "⇄"
+
+                edges_data.append({
+                    "from": node_str,
+                    "to": neighbor_str,
+                    "label": "",
+                    "textFull": vl_text,
+                    "arrows": "", # Aucune flèche graphique sur la ligne (géré textuellement par ⇄)
+                    "dashes": False,
+                    "color": {"color": MAIN_MESH_COLOR}
+                })
+                seen_pairs.add(pair_key)
+
+    # 5. Extraction sécurisée des routes de secours
+    if isinstance(archipelago_routes, dict):
+        for isolated_node, route_info in archipelago_routes.items():
+            if not isinstance(route_info, dict) or "path" not in route_info:
+                continue
+
+            path = route_info["path"]
+            if not path or len(path) < 2:
+                continue
+
+            # Attribution d'une couleur dédiée à l'ensemble de ce trajet d'îlot
+            route_color = generate_random_color()
+
+            for i in range(len(path) - 1):
+                u_node, v_node = path[i], path[i+1]
+                u_str, v_str = str(u_node), str(v_node)
+                pair_key = tuple(sorted([u_str, v_str]))
+
+                if pair_key not in seen_pairs:
+                    try:
+                        analysis = uf.calculate_harmonic_pathway(u_node, v_node)
+                        raw_pont_vl = analysis.get('voice_leading', [])
+                        pont_vl = ", ".join([str(x).replace("->", " ⇄ ") for x in raw_pont_vl]) if isinstance(raw_pont_vl, list) else str(raw_pont_vl).replace("->", " ⇄ ")
+                    except:
+                        pont_vl = "⇄"
+
+                    # Ajout dynamique des stations intermédiaires si absentes du morceau
+                    if u_str not in [n["id"] for n in nodes_data]:
+                        nodes_data.append({"id": u_str, "label": u_str, "group": u_str.split(" [")[0], "value": 11, "shape": "diamond"})
+                    if v_str not in [n["id"] for n in nodes_data]:
+                        nodes_data.append({"id": v_str, "label": v_str, "group": v_str.split(" [")[0], "value": 11, "shape": "diamond"})
+
+                    edges_data.append({
+                        "from": u_str,
+                        "to": v_str,
+                        "label": "",
+                        "textFull": pont_vl,
+                        "arrows": "", # Ligne simple continue (sans flèche)
+                        "dashes": True, # Style pointillé pour marquer l'itinéraire indirect
+                        "color": {"color": route_color}
+                    })
+                    seen_pairs.add(pair_key)
+
+    return jsonify({
+        "center": str(center_station),
+        "nodes": nodes_data,
+        "edges": edges_data
+    })
+
 
 if __name__ == '__main__':
     app.run(debug=True)

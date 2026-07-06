@@ -234,9 +234,9 @@ def print_analytical_report(G, center_station):
                         "is_relative": True
                     }
 
-        # 5. Final Output Render
-        # --- REPLACE ONLY THE STEP 5 FINAL OUTPUT RENDER IN piece_analyzer.py ---
         # 5. Final Output Render with Voice-Leading calculations
+        reconstructed_routes_data = {} # Pour l'API Web
+
         for node in unreached:
             route_data = final_routes[node]
             path_nodes = route_data["path"]
@@ -258,6 +258,17 @@ def print_analytical_report(G, center_station):
                 print(f"  │    └── 🗺️ Relative Archipelago Route: {steps_display} ({route_data['cost']} local step(s))")
             else:
                 print(f"  │    └── 🗺️ Absolute Mainland Route: {steps_display} ({route_data['cost']} global step(s))")
+
+            # Sauvegarde des données utiles pour l'affichage graphique
+            reconstructed_routes_data[node] = {
+                "path": path_nodes,
+                "is_relative": route_data["is_relative"],
+                "cost": route_data["cost"]
+            }
+
+        return reconstructed_routes_data
+    return {}
+
 
 if __name__ == "__main__":
     ravel_center = "Diatonic [D]"
