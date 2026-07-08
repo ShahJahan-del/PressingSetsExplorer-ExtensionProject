@@ -53,10 +53,52 @@ document.addEventListener('DOMContentLoaded', () => {
     // FONCTIONS DE DESSIN PERSISTANTES PAR ONGLET (Isolation complète)
     // =========================================================================
 
+    const symmetricLabels = {
+        "Octatonic [C]": "Octatonic [0,1]",
+        "Octatonic [C#]": "Octatonic [1,2]",
+        "Octatonic [Db]": "Octatonic [1,2]",
+        "Octatonic [D]": "Octatonic [2,3]",
+        "Whole Tone [C]": "Whole Tone [0]",
+        "Whole Tone [C#]": "Whole Tone [1]",
+        "Whole Tone [Db]": "Whole Tone [1]",
+        "Hexatonic [C]": "Hexatonic [0,1]",
+        "Hexatonic [C#]": "Hexatonic [1,2]",
+        "Hexatonic [Db]": "Hexatonic [1,2]",
+        "Hexatonic [D]": "Hexatonic [2,3]",
+        "Hexatonic [Eb]": "Hexatonic [3,4]"
+    };
+
+    // Nettoie et harmonise les textes affichés sur les nœuds du graphe
+    function cleanNodeLabel(label) {
+        if (!label) return label;
+
+        // 1. Convertit les dièses résiduels en bémols pour le visuel
+        const sharpToFlatNodes = { "C#": "Db", "D#": "Eb", "G#": "Ab", "A#": "Bb" };
+        let cleaned = label;
+        Object.keys(sharpToFlatNodes).forEach(sharp => {
+            if (cleaned.includes(`[${sharp}]`)) {
+                cleaned = cleaned.replace(`[${sharp}]`, `[${sharpToFlatNodes[sharp]}]`);
+            }
+        });
+
+        // 2. Remplace par le code de transposition symétrique compact si existant
+        if (symmetricLabels[cleaned]) {
+            return symmetricLabels[cleaned];
+        }
+        return cleaned;
+    }
+
     function drawExplorationGraph(data) {
         const container = document.getElementById('network-explore-container');
+        const harmonizedNodes = data.nodes.map(node => {
+            let newNode = { ...node };
+            newNode.label = cleanNodeLabel(newNode.label); // Applique le formatage harmonisé sur le texte visible
+            return newNode;
+        });
+
+        // Les données passées à Vis.js utilisent les labels nettoyés mais gardent les edges/ids originaux intacts
         const graphData = {
-            nodes: new vis.DataSet(data.nodes),
+            nodes: new vis.DataSet(harmonizedNodes),
             edges: new vis.DataSet(data.edges)
         };
 
@@ -95,9 +137,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     let family = match[1];
                     let root = match[2];
 
-                    // Traduction inverse Bémol -> Dièse pour forcer la synchronisation de l'IHM
-                    const flatToSharp = { "Eb": "D#", "Ab": "G#", "Bb": "A#" };
-                    if (flatToSharp[root]) root = flatToSharp[root];
+                    // Traduction inverse Dièse -> Bémol pour forcer la synchronisation stricte de l'IHM (Point 4)
+                    const sharpToFlat = { "D#": "Eb", "G#": "Ab", "A#": "Bb", "C#": "Db" };
+                    if (sharpToFlat[root]) root = sharpToFlat[root];
 
                     isAutomaticUpdate = true;
                     setTypeSelect.value = family;
@@ -114,8 +156,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function drawAnalysisGraph(data) {
         const container = document.getElementById('network-analyze-container');
+        const harmonizedNodes = data.nodes.map(node => {
+            let newNode = { ...node };
+            newNode.label = cleanNodeLabel(newNode.label); // Harmonise aussi les stations du morceau
+            return newNode;
+        });
+
         const graphData = {
-            nodes: new vis.DataSet(data.nodes),
+            nodes: new vis.DataSet(harmonizedNodes),
             edges: new vis.DataSet(data.edges)
         };
 
@@ -152,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
 
     // Les 12 transpositions chromatiques standard affichées pour l'utilisateur
-    const standardRoots = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const standardRoots = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 
     // Les transpositions limitées mappées sur les vraies clés de ton dictionnaire Python
     const symmetricRoots = {
@@ -247,7 +295,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // ROUTAGE DES DONNÉES APIS VERS LES BONS RESEAUX
     // =========================================================================
     async function updateExploration(type, root, distance) {
-        const response = await fetch(`/api/explore?type=${encodeURIComponent(type)}&root=${encodeURIComponent(root)}&distance=${distance}`);
+        // RECONVERSION EN DIÈSE POUR L'API PYTHON (Point 4)
+        // Si l'IHM envoie un bémol, on le remet en dièse pour que le serveur trouve la station
+        const flatToSharpApi = { "Db": "C#", "Eb": "D#", "Ab": "G#", "Bb": "A#" };
+        let apiRoot = flatToSharpApi[root] || root;
+
+        // On utilise apiRoot à la place de root dans le fetch :
+        const response = await fetch(`/api/explore?type=${encodeURIComponent(type)}&root=${encodeURIComponent(apiRoot)}&distance=${distance}`);
         const data = await response.json();
         if (data.error) { alert(data.error); return; }
 
@@ -389,9 +443,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Écouteur des boutons de la liste de suggestions d'identification
         document.querySelectorAll('.match-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                const family = btn.getAttribute('data-family'); let root = btn.getAttribute('data-root');
-                const flatToSharp = { "Eb": "D#", "Ab": "G#", "Bb": "A#" };
-                if (flatToSharp[root]) root = flatToSharp[root];
+                const family = btn.getAttribute('data-family');
+                let root = btn.getAttribute('data-root');
+
+                // Harmonisation Dièse -> Bémol (Point 4)
+                const sharpToFlat = { "D#": "Eb", "G#": "Ab", "A#": "Bb", "C#": "Db" };
+                if (sharpToFlat[root]) root = sharpToFlat[root];
 
                 isAutomaticUpdate = true; setTypeSelect.value = family; updateRootOptions(family);
                 rootSelect.disabled = false; rootSelect.value = root; isAutomaticUpdate = false;
@@ -403,19 +460,27 @@ document.addEventListener('DOMContentLoaded', () => {
         matchesContainer.style.display = 'block';
     }
 
+    // =========================================================================
+    // AFFICHAGE HARMONISÉ DES MODES DE LA COLLECTION (Points 4 & 6)
+    // =========================================================================
     function displayCollectionModes(family, root) {
         const container = document.getElementById('collection-modes-container');
         const badgeDiv = document.getElementById('selected-collection-badge');
         const modesList = document.getElementById('modes-list');
 
         // Traduction visuelle si c'est un set symétrique pour l'affichage du badge
-        let shortName = root;
         if (["Octatonic", "Whole Tone", "Hexatonic"].includes(family)) {
-            const symNames = { "C": "0,1", "C#": "1,2", "D": "2,3", "Eb": "3,4" };
+            const symNames = {
+                "C": family === "Whole Tone" ? "0" : "0,1",
+                "C#": family === "Whole Tone" ? "1" : "1,2",
+                "Db": family === "Whole Tone" ? "1" : "1,2",
+                "D": family === "Whole Tone" ? "0" : "2,3", // D revient à WT0 cycliquement
+                "Eb": "3,4"
+            };
             shortName = symNames[root] || root;
         }
 
-        // Point 4 : Harmonisation stricte du Badge avec la nomenclature unifiée partout
+        // Point 4 : Harmonisation stricte du Badge avec la nomenclature unifiée partout [Famille [Racine]]
         badgeDiv.innerHTML = `
             <span style="background-color: #84cc16; color: #ffffff; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
                 ${family} [${shortName}]
@@ -428,14 +493,23 @@ document.addEventListener('DOMContentLoaded', () => {
             // Point 6 : Récupération des notes actuellement actives (allumées) sur le piano pour trouver la vraie lettre du mode
             const activeNotes = Array.from(document.querySelectorAll('.key.active')).map(k => k.innerText.trim());
 
-            // C'est un set asymétrique : on boucle sur ses modes
+            // Dictionnaire de conversion de sécurité des dièses en bémols pour le visuel des modes
+            const sharpToFlatDisplay = { "C#": "Db", "D#": "Eb", "F#": "F#", "G#": "Ab", "A#": "Bb" };
+
+            // C'est un set asymétrique : on boucle sur ses modes pour générer les degrés
             familyModes[family].forEach((modeName, index) => {
                 const li = document.createElement('li');
                 li.style.cssText = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: #94a3b8; font-size: 14px;";
 
-                // Si les notes ne sont pas encore lues, on prend la racine par défaut, sinon la vraie note de l'index diatonique
-                const modeRootLetter = (activeNotes && activeNotes[index]) ? activeNotes[index] : root;
+                // Si les notes ne sont pas encore lues sur le piano, on prend la racine par défaut, sinon la vraie note de l'index diatonique
+                let modeRootLetter = (activeNotes && activeNotes[index]) ? activeNotes[index] : root;
 
+                // TRADUCTION VISUELLE ET HARMONISATION : Si la note extraite du piano contient un dièse, on la transforme en bémol pour l'affichage
+                if (sharpToFlatDisplay[modeRootLetter]) {
+                    modeRootLetter = sharpToFlatDisplay[modeRootLetter];
+                }
+
+                // Injection du code HTML avec la fondamentale du mode en gras et en bémol (ex: Db Major/Ionian)
                 li.innerHTML = `
                     <span><span style="color: #475569; margin-right: 8px;">▪</span> <strong>${modeRootLetter}</strong> ${modeName}</span>
                     <button class="play-mode-btn" data-degree="${index}" style="
@@ -454,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 modesList.appendChild(li);
             });
         } else {
-            // C'est un set symétrique (Octatonic, Whole Tone, Hexatonic)
+            // C'est un set symétrique (Octatonic, Whole Tone, Hexatonic) à transpositions limitées
             const li = document.createElement('li');
             li.style.cssText = "color: #64748b; font-style: italic; padding: 10px 0;";
             li.innerText = "Cette collection est symétrique (à transpositions limitées) et ne possède pas de modes distincts exploitables de manière diatonique.";
