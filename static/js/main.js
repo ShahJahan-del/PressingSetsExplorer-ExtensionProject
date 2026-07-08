@@ -408,31 +408,48 @@ document.addEventListener('DOMContentLoaded', () => {
         const badgeDiv = document.getElementById('selected-collection-badge');
         const modesList = document.getElementById('modes-list');
 
-        // 1. Affichage du Badge de la collection
+        // Traduction visuelle si c'est un set symétrique pour l'affichage du badge
         let shortName = root;
         if (["Octatonic", "Whole Tone", "Hexatonic"].includes(family)) {
             const symNames = { "C": "0,1", "C#": "1,2", "D": "2,3", "Eb": "3,4" };
             shortName = symNames[root] || root;
         }
 
+        // Point 4 : Harmonisation stricte du Badge avec la nomenclature unifiée partout
         badgeDiv.innerHTML = `
-            <span style="background-color: #84cc16; color: white; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                ${shortName} ${family.substring(0, 3).toUpperCase()}
+            <span style="background-color: #84cc16; color: #ffffff; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                ${family} [${shortName}]
             </span>
-            <span style="color: #64748b; margin-left: 10px; font-size: 14px;">(${root} ${family})</span>
         `;
 
-        // 2. Génération dynamique de la liste des modes
         modesList.innerHTML = '';
 
         if (familyModes[family]) {
+            // Point 6 : Récupération des notes actuellement actives (allumées) sur le piano pour trouver la vraie lettre du mode
+            const activeNotes = Array.from(document.querySelectorAll('.key.active')).map(k => k.innerText.trim());
+
             // C'est un set asymétrique : on boucle sur ses modes
             familyModes[family].forEach((modeName, index) => {
                 const li = document.createElement('li');
                 li.style.cssText = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: #94a3b8; font-size: 14px;";
+
+                // Si les notes ne sont pas encore lues, on prend la racine par défaut, sinon la vraie note de l'index diatonique
+                const modeRootLetter = (activeNotes && activeNotes[index]) ? activeNotes[index] : root;
+
                 li.innerHTML = `
-                    <span><span style="color: #475569; margin-right: 8px;">▪</span> ${modeName}</span>
-                    <button class="play-mode-btn" data-degree="${index}" style="background-color: white; color: #0f172a; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 4px; font-weight: 500; cursor: pointer; font-size: 12px; transition: all 0.2s;">PLAY THIS MODE</button>
+                    <span><span style="color: #475569; margin-right: 8px;">▪</span> <strong>${modeRootLetter}</strong> ${modeName}</span>
+                    <button class="play-mode-btn" data-degree="${index}" style="
+                        background-color: #ffffff;
+                        color: #0f172a;
+                        border: 1px solid #cbd5e1;
+                        padding: 6px 12px;
+                        border-radius: 4px;
+                        font-weight: 500;
+                        cursor: pointer;
+                        font-size: 12px;
+                        transition: all 0.2s;">
+                        PLAY
+                    </button>
                 `;
                 modesList.appendChild(li);
             });
@@ -443,6 +460,41 @@ document.addEventListener('DOMContentLoaded', () => {
             li.innerText = "Cette collection est symétrique (à transpositions limitées) et ne possède pas de modes distincts exploitables de manière diatonique.";
             modesList.appendChild(li);
         }
+
         container.style.display = 'block';
+    }
+
+    // =========================================================================
+    // INITIALISATION DYNAMIQUE DE LA PALETTE DE COULEURS INTERACTIVE (Point 7)
+    // =========================================================================
+    const pickersContainer = document.getElementById('color-pickers-container');
+    if (pickersContainer) {
+        Object.keys(globalOptions.groups).forEach(family => {
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = "display: flex; align-items: center; gap: 4px; color: #94a3b8; font-size: 11px; font-weight: 500;";
+
+            const defaultColor = globalOptions.groups[family].color.background;
+
+            wrapper.innerHTML = `
+                <input type="color" class="family-color-input" data-family="${family}" value="${defaultColor}" title="${family}" style="border:none; width:18px; height:18px; cursor:pointer; background:none; padding:0;">
+                <span>${family.substring(0, 3).toUpperCase()}</span>
+            `;
+            pickersContainer.appendChild(wrapper);
+        });
+
+        // Écouteur sur chaque changement de couleur pour mettre à jour les réseaux à la volée
+        document.querySelectorAll('.family-color-input').forEach(input => {
+            input.addEventListener('input', function() {
+                const family = this.dataset.family;
+                const newColor = this.value;
+
+                globalOptions.groups[family].color.background = newColor;
+                globalOptions.groups[family].color.border = newColor;
+
+                // Application immédiate aux instances de graphes existantes
+                if (networkExplore) networkExplore.setOptions({ groups: globalOptions.groups });
+                if (networkAnalyze) networkAnalyze.setOptions({ groups: globalOptions.groups });
+            });
+        });
     }
 });
