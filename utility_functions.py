@@ -29,7 +29,6 @@ INT_TO_NOTE = {
 }
 
 
-
 def get_absolute_pitches(set_name, root_note):
     """Calculates the set of absolute pitch-classes (0-11) for a given station."""
     intervals = SET_STRUCTURES[set_name]
@@ -166,6 +165,7 @@ def calculate_harmonic_pathway(source_name, target_name):
     """
     Analyzes the structural pathway between two stations.
     Maps out exact common tones and minimal voice-leading displacements.
+    FORMATTED AS: (Note1, Note2 ⇄ TargetNote) (Points 1 & 2)
     """
     source_pitches = all_stations[source_name]
     target_pitches = all_stations[target_name]
@@ -175,30 +175,26 @@ def calculate_harmonic_pathway(source_name, target_name):
     pivots_list = [INT_TO_NOTE[n] for n in sorted(list(common))]
 
     # Notes that move
-    departing_pitches = source_pitches - target_pitches
-    arriving_pitches = target_pitches - source_pitches
+    departing_pitches = sorted(list(source_pitches - target_pitches))
+    arriving_pitches = sorted(list(target_pitches - source_pitches))
 
     displacements = []
-    avail_targets = list(arriving_pitches)
 
-    # Find the shortest circular distance for each moving note (-6 to +6 semi-tones)
-    for d_pitch in sorted(list(departing_pitches)):
-        best_target = None
-        min_distance = 99
-        for t_pitch in avail_targets:
-            dist = (t_pitch - d_pitch) % 12
-            if dist > 6: dist -= 12
-            if abs(dist) < abs(min_distance):
-                min_distance = dist
-                best_target = t_pitch
+    # Si des notes bougent, on crée un seul tuple global ultra-propre
+    if departing_pitches or arriving_pitches:
+        deps_str = ", ".join([INT_TO_NOTE[p] for p in departing_pitches])
+        arrs_str = ", ".join([INT_TO_NOTE[p] for p in arriving_pitches])
 
-        if best_target is not None:
-            displacements.append(f"{INT_TO_NOTE[d_pitch]}->{INT_TO_NOTE[best_target]}")
+        # Gestion des cas particuliers (si un côté est vide lors d'un gros saut de cardinalité)
+        if not deps_str: deps_str = "Ø"
+        if not arrs_str: arrs_str = "Ø"
+
+        displacements.append(f"({deps_str} ⇄ {arrs_str})")
 
     return {
         "pivots_count": len(common),
         "pivots": pivots_list,
-        "voice_leading": displacements
+        "voice_leading": displacements  # Renvoie par exemple ['(C#, Bb ⇄ B)']
     }
 
 def scan_all_pathways(source_name, max_displaced_notes=2):

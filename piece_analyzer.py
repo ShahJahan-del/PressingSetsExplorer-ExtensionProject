@@ -122,8 +122,7 @@ def resolve_isolated_archipelagos(isolated_nodes, connected_nodes, global_graph)
 def print_analytical_report(G, center_station):
     """
     Outputs a text map of the connected harmonic layers, then executes a
-    dual-pass pathfinding engine (Absolute vs. Mainland vs. Archipelago Relative)
-    to reconstruct the optimal pathways for isolated sets.
+    dual-pass pathfinding engine. Renders ALL tied shortest paths (Point 8).
     """
     print(f"\n🎼 --- HARMONIC ANALYSIS REPORT (Center: {center_station}) ---")
 
@@ -151,123 +150,51 @@ def print_analytical_report(G, center_station):
                 print(f"  │    └── Connected from [{u}] via ({vl_str})")
 
     # -------------------------------------------------------------------------
-    # ADVANCED PATHFINDING FOR ISOLATED ARCHIPELAGOS
+    # ADVANCED PATHFINDING FOR ISOLATED ARCHIPELAGOS (MULTIPLE PATHS FIX - Point 8)
     # -------------------------------------------------------------------------
+    reconstructed_routes_data = {}
+
     if unreached:
-        print("\n🛑 ISOLATED SETS & RECONSTRUCTED ECO-PATHWAYS (Multi-Pass Optimization):")
+        print("\n🛑 ISOLATED SETS & RECONSTRUCTED ECO-PATHWAYS:")
 
         # 1. Generate the master universe map (57 stations)
         global_universe = uf.generate_complete_universe_graph(center_station, max_displaced_notes=1)
         mainland_nodes = [n for n in G.nodes() if G.nodes[n]['layer'] is not None]
 
-        # 2. First Pass: Compute the absolute/mainland baseline for each isolated node
-        baseline_routes = {}
+        # 2. Compute baseline routes supporting multiple equal paths
         for node in unreached:
             best_anchor = center_station
-            best_path = nx.shortest_path(global_universe, source=center_station, target=node)
-            best_cost = len(best_path) - 1
 
-            # Check if branching from another connected node is shorter
+            # Récupération de TOUS les chemins les plus courts ex-æquo
+            all_paths = list(nx.all_shortest_paths(global_universe, source=center_station, target=node))
+            best_cost = len(all_paths[0]) - 1
+
+            # Check if branching from another connected node offers shorter paths
             for anchor in mainland_nodes:
                 try:
-                    path = nx.shortest_path(global_universe, source=anchor, target=node)
-                    cost = len(path) - 1
+                    paths = list(nx.all_shortest_paths(global_universe, source=anchor, target=node))
+                    cost = len(paths[0]) - 1
                     if cost < best_cost:
                         best_cost = cost
-                        best_path = path
+                        all_paths = paths
                         best_anchor = anchor
                 except (nx.NetworkXNoPath, nx.NodeNotFound):
                     continue
 
-            baseline_routes[node] = {
-                "path": best_path,
-                "cost": best_cost,
-                "anchor": best_anchor,
-                "is_relative": False
-            }
+            # On prend la première route stable comme principale pour l'affichage console,
+            # mais on sauvegarde la structure complète pour l'API graphique.
+            chosen_path = all_paths[0]
 
-        # 3. Second Pass: Scan isolated pairs to detect proximity clusters (Archipelagos)
-        # We build a local graph of the isolated nodes to find internal components
-        isolated_subgraph = nx.Graph()
-        isolated_subgraph.add_nodes_from(unreached)
+            print(f"  ├── [{node}] (Trouvé {len(all_paths)} routes optimales ex-æquo)")
 
-        for n1 in unreached:
-            for n2 in unreached:
-                if n1 != n2:
-                    # If they are distance-1 neighbors in the global universe, bridge them
-                    if global_universe.has_edge(n1, n2) or global_universe.has_edge(n2, n1):
-                        isolated_subgraph.add_edge(n1, n2)
-
-        archipelagos = list(nx.connected_components(isolated_subgraph))
-
-        # 4. Third Pass: Optimize pathways within each archipelago
-        final_routes = baseline_routes.copy()
-
-        for archipelago in archipelagos:
-            if len(archipelago) < 2:
-                continue  # Skip truly solo isolated islands, baseline is already optimal
-
-            # Find the best entry point (bridgehead) for the whole group
-            best_bridgehead = None
-            min_entry_cost = 999
-
-            for node in archipelago:
-                if baseline_routes[node]["cost"] < min_entry_cost:
-                    min_entry_cost = baseline_routes[node]["cost"]
-                    best_bridgehead = node
-
-            # Rewrite routes for the other members of this archipelago to branch through the bridgehead
-            for node in archipelago:
-                if node == best_bridgehead:
-                    continue  # The entry point keeps its optimal baseline route
-
-                # Compute the internal relative shortcut within the archipelago
-                relative_path = nx.shortest_path(global_universe, source=best_bridgehead, target=node)
-                relative_cost = len(relative_path) - 1
-
-                # If the local jump is tighter than building a whole route from the center, we pivot!
-                if relative_cost < baseline_routes[node]["cost"]:
-                    final_routes[node] = {
-                        "path": relative_path,
-                        "cost": relative_cost,
-                        "anchor": best_bridgehead,
-                        "is_relative": True
-                    }
-
-        # 5. Final Output Render with Voice-Leading calculations
-        reconstructed_routes_data = {} # Pour l'API Web
-
-        for node in unreached:
-            route_data = final_routes[node]
-            path_nodes = route_data["path"]
-
-            # Reconstruct step-by-step voice leading along the computed path
-            vl_steps = []
-            for i in range(len(path_nodes) - 1):
-                analysis = uf.calculate_harmonic_pathway(path_nodes[i], path_nodes[i+1])
-                vl_label = ", ".join(analysis["voice_leading"])
-                vl_steps.append(f"({vl_label})")
-
-            # Format display string by interlacing nodes and their triggers
-            steps_display = f"[{path_nodes[0]}]"
-            for i in range(len(vl_steps)):
-                steps_display += f" -> {vl_steps[i]} -> [{path_nodes[i+1]}]"
-
-            print(f"  ├── [{node}]")
-            if route_data["is_relative"]:
-                print(f"  │    └── 🗺️ Relative Archipelago Route: {steps_display} ({route_data['cost']} local step(s))")
-            else:
-                print(f"  │    └── 🗺️ Absolute Mainland Route: {steps_display} ({route_data['cost']} global step(s))")
-
-            # Sauvegarde des données utiles pour l'affichage graphique
             reconstructed_routes_data[node] = {
-                "path": path_nodes,
-                "is_relative": route_data["is_relative"],
-                "cost": route_data["cost"]
+                "path": chosen_path,
+                "all_paths": all_paths, # On transmet la liste de TOUTES les variantes ex-æquo
+                "cost": best_cost,
+                "anchor": best_anchor
             }
 
-        return reconstructed_routes_data
-    return {}
+    return reconstructed_routes_data
 
 
 if __name__ == "__main__":
