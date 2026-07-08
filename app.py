@@ -103,37 +103,23 @@ def identify_sets():
     data = request.get_json() or {}
     raw_pitches = data.get('pitches', [])
 
-    # Mapping universel pour s'assurer de la correspondance numérique
-    pitch_to_int = {
-        "C": 0, "C#": 1, "Db": 1, "D": 2, "D#": 3, "Eb": 3, "E": 4, "F": 5,
-        "F#": 6, "Gb": 6, "G": 7, "G#": 8, "Ab": 8, "A": 9, "A#": 10, "Bb": 10, "B": 11
-    }
-
-    user_pitches = set(pitch_to_int[p] for p in raw_pitches if p in pitch_to_int)
+    # On utilise directement le dictionnaire de référence de utility_functions
+    user_pitches = set(uf.NOTE_TO_INT[p] for p in raw_pitches if p in uf.NOTE_TO_INT)
 
     if not user_pitches:
         return jsonify({"matches": []})
 
     matches = []
-    int_to_pitch = {0:"C", 1:"C#", 2:"D", 3:"D#", 4:"E", 5:"F", 6:"F#", 7:"G", 8:"G#", 9:"A", 10:"A#", 11:"B"}
 
     for station_name, station_pitches in uf.all_stations.items():
-        # Conversion adaptative : gère les entiers et les chaînes
-        station_pitches_ints = set()
-        for p in station_pitches:
-            if isinstance(p, int):
-                station_pitches_ints.add(p)
-            elif str(p).isdigit():
-                station_pitches_ints.add(int(p))
-            elif p in pitch_to_int:
-                station_pitches_ints.add(pitch_to_int[p])
+        # Plus besoin de deviner le type : station_pitches contient de purs entiers (Point 3)
+        if user_pitches.issubset(station_pitches):
+            missing_ints = sorted(list(station_pitches - user_pitches))
 
-        if user_pitches.issubset(station_pitches_ints):
-            missing_ints = sorted(list(station_pitches_ints - user_pitches))
-            missing_pitches = [int_to_pitch.get(i, str(i)) for i in missing_ints]
+            # Harmonisation visuelle stricte via le dictionnaire global INT_TO_NOTE (Point 4)
+            missing_pitches = [uf.INT_TO_NOTE.get(i, str(i)) for i in missing_ints]
 
             family = station_name.split(" [")[0]
-            # Extraction propre de la racine d'origine de la station
             root = station_name.split("[")[1].replace("]", "")
 
             matches.append({
@@ -232,48 +218,50 @@ def analyze_piece():
                 })
                 seen_pairs.add(pair_key)
 
-    # 5. Extraction sécurisée des routes de secours
+    # 5. Extraction sécurisée des routes de secours multiples (Point 8)
     if isinstance(archipelago_routes, dict):
         for isolated_node, route_info in archipelago_routes.items():
-            if not isinstance(route_info, dict) or "path" not in route_info:
+            if not isinstance(route_info, dict) or "all_paths" not in route_info:
                 continue
 
-            path = route_info["path"]
-            if not path or len(path) < 2:
-                continue
-
-            # Attribution d'une couleur dédiée à l'ensemble de ce trajet d'îlot
+            # Une couleur unique pour tout cet archipel
             route_color = generate_random_color()
 
-            for i in range(len(path) - 1):
-                u_node, v_node = path[i], path[i+1]
-                u_str, v_str = str(u_node), str(v_node)
-                pair_key = tuple(sorted([u_str, v_str]))
+            # On trace CHAQUE chemin ex-æquo trouvé par le moteur
+            for path in route_info["all_paths"]:
+                if not path or len(path) < 2:
+                    continue
 
-                if pair_key not in seen_pairs:
-                    try:
-                        analysis = uf.calculate_harmonic_pathway(u_node, v_node)
-                        raw_pont_vl = analysis.get('voice_leading', [])
-                        pont_vl = ", ".join([str(x).replace("->", " ⇄ ") for x in raw_pont_vl]) if isinstance(raw_pont_vl, list) else str(raw_pont_vl).replace("->", " ⇄ ")
-                    except:
-                        pont_vl = "⇄"
+                for i in range(len(path) - 1):
+                    u_node, v_node = path[i], path[i+1]
+                    u_str, v_str = str(u_node), str(v_node)
+                    pair_key = tuple(sorted([u_str, v_str]))
 
-                    # Ajout dynamique des stations intermédiaires si absentes du morceau
-                    if u_str not in [n["id"] for n in nodes_data]:
-                        nodes_data.append({"id": u_str, "label": u_str, "group": u_str.split(" [")[0], "value": 11, "shape": "diamond"})
-                    if v_str not in [n["id"] for n in nodes_data]:
-                        nodes_data.append({"id": v_str, "label": v_str, "group": v_str.split(" [")[0], "value": 11, "shape": "diamond"})
+                    # Si ce pont n'est pas déjà affiché dans le maillage principal
+                    if pair_key not in seen_pairs:
+                        try:
+                            analysis = uf.calculate_harmonic_pathway(u_node, v_node)
+                            raw_pont_vl = analysis.get('voice_leading', [])
+                            pont_vl = ", ".join(raw_pont_vl)
+                        except:
+                            pont_vl = "⇄"
 
-                    edges_data.append({
-                        "from": u_str,
-                        "to": v_str,
-                        "label": "",
-                        "textFull": pont_vl,
-                        "arrows": "", # Ligne simple continue (sans flèche)
-                        "dashes": True, # Style pointillé pour marquer l'itinéraire indirect
-                        "color": {"color": route_color}
-                    })
-                    seen_pairs.add(pair_key)
+                        if u_str not in [n["id"] for n in nodes_data]:
+                            nodes_data.append({"id": u_str, "label": u_str, "group": u_str.split(" [")[0], "value": 11, "shape": "diamond"})
+                        if v_str not in [n["id"] for n in nodes_data]:
+                            nodes_data.append({"id": v_str, "label": v_str, "group": v_str.split(" [")[0], "value": 11, "shape": "diamond"})
+
+                        edges_data.append({
+                            "from": u_str,
+                            "to": v_str,
+                            "label": "",
+                            "textFull": pont_vl,
+                            "arrows": "",
+                            "dashes": True,
+                            "color": {"color": route_color}
+                        })
+                        # Note : on ne l'ajoute pas à seen_pairs ici pour permettre à deux routes alternatives
+                        # de traverser le même pont si nécessaire sans s'effacer !
 
     return jsonify({
         "center": str(center_station),
