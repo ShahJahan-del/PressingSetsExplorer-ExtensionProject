@@ -460,6 +460,36 @@ document.addEventListener('DOMContentLoaded', () => {
         matchesContainer.style.display = 'block';
     }
 
+    // Fonction auxiliaire pour injecter et afficher les modes
+    function showCollectionModes(match) {
+        const modesContainer = document.getElementById('collection-modes-container');
+        const badge = document.getElementById('selected-collection-badge');
+        const modesList = document.getElementById('modes-list');
+
+        if (!modesContainer || !modesList || !badge) return;
+
+        // 1. Rendre le bloc visible
+        modesContainer.style.display = 'block';
+
+        // 2. Mettre à jour le badge supérieur
+        badge.innerHTML = `<span style="background: #3b82f6; color: white; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px;">${match.name} en ${match.root}</span>`;
+
+        // 3. Vider et régénérer la liste des modes
+        modesList.innerHTML = '';
+
+        // Si ton API Python renvoie les modes dans l'objet match (ex: match.modes = ["Mode 1...", "Mode 2..."])
+        if (match.modes && match.modes.length > 0) {
+            match.modes.forEach((mode, index) => {
+                const modeLi = document.createElement('li');
+                modeLi.style.cssText = "padding: 8px; margin-bottom: 4px; background: #1e293b; border-radius: 4px; color: #cbd5e1; font-size: 13px;";
+                modeLi.innerHTML = `<b>Mode ${index + 1} :</b> ${mode}`;
+                modesList.appendChild(modeLi);
+            });
+        } else {
+            modesList.innerHTML = `<li style="color: #64748b; font-style: italic;">Aucun mode détaillé renvoyé par l'API pour cette collection.</li>`;
+        }
+    }
+
     // =========================================================================
     // AFFICHAGE HARMONISÉ DES MODES DE LA COLLECTION (Points 4 & 6)
     // =========================================================================
@@ -467,6 +497,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('collection-modes-container');
         const badgeDiv = document.getElementById('selected-collection-badge');
         const modesList = document.getElementById('modes-list');
+
+        if (!container || !badgeDiv || !modesList) return;
+
+        // Déclaration initiale sécurisée pour éviter le crash JS
+        let shortName = root;
 
         // Traduction visuelle si c'est un set symétrique pour l'affichage du badge
         if (["Octatonic", "Whole Tone", "Hexatonic"].includes(family)) {
@@ -571,4 +606,56 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    // =========================================================================
+    // RESTAURATION DE L'ÉCOUTE DES CLICS SUR LE PIANO VIRTUEL
+    // =========================================================================
+    const keys = document.querySelectorAll('.piano .key');
+
+    keys.forEach(key => {
+        key.addEventListener('click', async () => {
+            // 1. Allume ou éteint la touche visuellement
+            key.classList.toggle('active');
+
+            // 2. Récupère toutes les touches actuellement allumées
+            const activeKeys = Array.from(document.querySelectorAll('.piano .key.active'));
+
+            // L'API a besoin d'au moins 3 notes pour chercher des sous-ensembles parents
+            if (activeKeys.length >= 3) {
+                // On extrait le nom de la note (C, Db, D...) situé dans le <span> pour Python
+                const selectedPitches = activeKeys.map(k => {
+                    const spanEl = k.querySelector('span');
+                    return spanEl ? spanEl.innerText.trim() : k.innerText.trim();
+                });
+
+                try {
+                    // 3. Envoi des notes au serveur
+                    const res = await fetch('/api/identify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pitches: selectedPitches })
+                    });
+
+                    const data = await res.json();
+
+                    if (data.error) {
+                        console.error("Erreur API :", data.error);
+                        return;
+                    }
+
+                    // 4. Injection des résultats dans le conteneur HTML prévu à cet effet
+                    displayKeyboardMatches(data.matches);
+
+                } catch (err) {
+                    console.error("Erreur lors de la communication avec l'API :", err);
+                }
+            } else {
+                // Si on repasse sous la barre des 3 notes, on cache le panneau des correspondances
+                const matchesContainer = document.getElementById('keyboard-matches-container');
+                if (matchesContainer) {
+                    matchesContainer.style.display = 'none';
+                }
+            }
+        });
+    });
 });
